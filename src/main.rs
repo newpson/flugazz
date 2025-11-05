@@ -1,4 +1,4 @@
-use nalgebra::{self, Point2};
+use nalgebra::{Point2};
 
 type Point = Point2<f64>;
 
@@ -10,49 +10,40 @@ enum PointPolygonLocation {
 }
 
 fn calc_point_polygon_location(target: &Point, polygon: &Vec<Point>) -> PointPolygonLocation {
-    let mut w: isize = 0;
-    let mut hw: isize = 0;
-    for points_pair in polygon.windows(2) {
-        let current = &points_pair[0];
-        let next = &points_pair[1];
+    let mut w: i32 = 0;
+    let mut hw: i32 = 0;
 
-        if current == next {
+    for points_pair in polygon.windows(2) {
+        if points_pair[0] == points_pair[1] {
             continue;
         }
-
-        let v = next - current;
-        let tx = (target.x - current.x) / v.x;
-        let ty = (target.y - current.y) / v.y;
-        if v.x == 0.0 {
-            if target.x == current.x && ty >= 0.0 && ty <= 1.0 {
-                return PointPolygonLocation::EDGE;
-            }
-        } else if v.y == 0.0 {
-            if target.y == current.y && tx >= 0.0 && tx <= 1.0 {
-                return PointPolygonLocation::EDGE;
-            }
-        } else if tx == ty && tx >= 0.0 && tx <= 1.0 {
-            return PointPolygonLocation::EDGE;
-        }
         
-        if current.x >= target.x || next.x >= target.x {
-            if current.y < target.y {
-                if next.y > target.y {
-                    w -= 1;
-                } else if next.y == target.y {
-                    hw -= 1;
-                }
-            } else if current.y > target.y {
-                if next.y < target.y {
-                    w += 1;
-                } else if next.y == target.y {
-                    hw += 1;
-                }
-            } else { // current.y == target.y
-                if next.y > target.y {
-                    hw -= 1;
-                } else if next.y < target.y {
-                    hw += 1;
+        // move `target` to (0, 0)
+        let current = &points_pair[0] - target;
+        let next = &points_pair[1] - target;
+        let ycomp = current.y * next.y;
+        if ycomp <= 0.0 {
+            let u = &current;
+            let v = next - current;
+            let t = -u.component_div(&v);
+
+            // Check if `target` lies on the edge of `polygon`
+            // HACK: t component will be NaN if corresponding u and v components will be 0
+            if t.x.is_nan() && t.y >= 0.0 && t.y <= 1.0 ||
+               t.y.is_nan() && t.x >= 0.0 && t.x <= 1.0 ||
+               t.x == t.y {
+                return PointPolygonLocation::EDGE;
+            }
+
+            // Count winding number of `polygon` around `target`
+            let x = u.x + v.x * t.y;
+            // HACK: same as above, current.y != next.y
+            if !t.y.is_nan() && x > 0.0 {
+                let delta = if next.y > current.y { 1 } else { -1 };
+                if ycomp == 0.0 {
+                    hw += delta;
+                } else { // ycomp < 0
+                    w += delta;
                 }
             }
         }
@@ -62,18 +53,30 @@ fn calc_point_polygon_location(target: &Point, polygon: &Vec<Point>) -> PointPol
     if w + hw/2 + hw%2 != 0 {
         return PointPolygonLocation::INSIDE;
     }
-
+ 
     PointPolygonLocation::OUTSIDE
 }
 
 fn main() {
-    let wnumber = calc_point_polygon_location(
-        &Point::new(1.5, 2.4),
-        &vec![
+    let polygon = vec![
             Point::new(0.0, 0.0),
             Point::new(0.0, 3.0),
             Point::new(3.0, 2.0),
-            Point::new(3.0, 0.0),
-            Point::new(0.0, 0.0)]);
-    println!("Winding number: {wnumber:?}");
+            Point::new(2.0, 0.0),
+            Point::new(0.0, 0.0)];
+    let step = 0.1;
+    let mut point = Point::new(0.0, 0.0);
+    for y in (-5..36).rev() {
+        point.y = f64::from(y) * step;
+        for x in -5..36 {
+            point.x = f64::from(x) * step;
+            let char = match calc_point_polygon_location(&point, &polygon) {
+                PointPolygonLocation::EDGE => '.',
+                PointPolygonLocation::INSIDE => '@',
+                PointPolygonLocation::OUTSIDE => '_'
+            };
+            print!("{char}");
+        }
+        println!("");
+    }
 }
