@@ -1,8 +1,10 @@
 [package]
 name = "drop"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
-# evalexpr = "13"
-nalgebra = "0"
+nalgebra = { version = "0", default-features = false }
+simba = "0" # implicitly required by `nalgebra` for magnitude()
+ndarray = { version = "0", default-features = false }
+float-cmp = { version = "0", default-features = false }
