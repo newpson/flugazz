@@ -64,25 +64,21 @@ trait LiquidDrop<'a>: crate::runge_kutta::Vector
 
 #[derive(Clone, Debug)]
 pub struct LiquidDropState {
-    /// Радиус-вектор положения капли, (м, м)
+    /// Радиус-вектор положения капли, мм
     position: Vector2<f64>,
 
-    /// Вектор скорости капли, (м/с, м/с)
+    /// Вектор скорости капли, мм/мс
     speed: Vector2<f64>,
 
-    /// Куб диаметра капли, м^3
+    /// Куб диаметра капли, мм^3
     diameter3: f64,
 
-    /// Накопленное напряжение капли, Гц
+    /// Накопленное напряжение капли, кГц
     accumulated_stress: f64,
 }
 
 impl LiquidDropState {
-    pub fn new_with_stress(position: &Vector2<f64>,
-                       speed: &Vector2<f64>,
-                       diameter3: f64,
-                       accumulated_stress: f64) -> Self
-    {
+    pub fn new_with_stress(position: &Vector2<f64>, speed: &Vector2<f64>, diameter3: f64, accumulated_stress: f64) -> Self {
         LiquidDropState {
             position: position.clone(),
             speed: speed.clone(),
@@ -91,10 +87,7 @@ impl LiquidDropState {
         }
     }
 
-    pub fn new(position: &Vector2<f64>,
-           speed: &Vector2<f64>,
-           diameter3: f64) -> Self
-    {
+    pub fn new(position: &Vector2<f64>, speed: &Vector2<f64>, diameter3: f64) -> Self {
         LiquidDropState::new_with_stress(position, speed, diameter3, 0.0)
     }
 }
@@ -143,21 +136,6 @@ impl Add<LiquidDropState> for LiquidDropState {
 
 impl crate::runge_kutta::Vector for LiquidDropState {}
 
-#[derive(Clone, Debug)]
-pub struct LiquidDropShared {
-    diameter: f64,
-    weber: f64,
-}
-
-impl Default for LiquidDropShared {
-    fn default() -> Self {
-        LiquidDropShared {
-            diameter: 0.0,
-            weber: 0.0,
-        }
-    }
-}
-
 /// Skew the vector through its normal forming `angle` between `v` and returned vector
 fn skew_transform(v: &Vector2<f64>, angle: f64) -> Vector2<f64> {
     let tan = f64::tan(angle);
@@ -169,18 +147,15 @@ fn skew_transform(v: &Vector2<f64>, angle: f64) -> Vector2<f64> {
 
 impl<'a> System for LiquidDropProblem {
     type State = LiquidDropState;
-    type Shared = LiquidDropShared;
 
-    fn should_terminate(&self, time: f64, current: &Self::State, shared: &mut Self::Shared) -> bool {
+    fn should_terminate(&self, time: f64, current: &Self::State) -> bool {
+        // TODO:
         false
     }
 
-    fn should_branch(&self, time: f64, state: &Self::State, shared: &mut Self::Shared) -> Option<Vec<Self::State>> {
+    fn should_branch(&self, _time: f64, state: &Self::State) -> Option<Vec<Self::State>> {
         const BRANCHING_ANGLE: f64 = f64::to_radians(30.0);
-        shared.diameter = state.diameter3().powf(1.0/3.0);
-        shared.weber = self.gas_density * shared.diameter * (self.gas_speed - state.speed()).magnitude_squared() / self.fluid_surface_tension;
-
-        if shared.weber > self.weber_critical && state.accumulated_stress >= 1.0 {
+        if state.accumulated_stress >= 1.0 {
             let new_diameter3 = state.diameter3 / 2.0;
             return Some(vec![
                 LiquidDropState::new(
@@ -198,25 +173,25 @@ impl<'a> System for LiquidDropProblem {
         None
     }
 
-    fn integrate(&self, time: f64, state: &Self::State, shared: &mut Self::Shared) -> Self::State {
-        let evaporation_rate = -self.mass_flow / (1.0 - self.mass_flow).powf(0.75);
-        let mut state_variation = LiquidDropState {
+    fn integrate(&self, _time: f64, state: &Self::State) -> Self::State {
+        let evaporation_rate = self.mass_flow / (1.0 - self.mass_flow).powf(0.75);
+        let diameter = state.diameter3().powf(1.0/3.0);
+        let speed_difference = self.gas_speed - state.speed();
+        let relaxation_time = 1.43 * diameter * (self.fluid_density / self.gas_density).sqrt() / (self.gas_speed - state.speed()).magnitude();
+
+        LiquidDropState {
             position: state.speed().clone(),
-            speed: 0.75 * self.drag_coefficient * self.gas_density / self.fluid_density / shared.diameter * (self.gas_speed - state.speed()).magnitude() * (self.gas_speed - state.speed()) - 1.0/self.gas_density * self.gas_pressure_grad,
-            diameter3: evaporation_rate * self.gas_viscosity * self.nusselt * shared.diameter / self.fluid_density,
-            accumulated_stress: 0.0,
-        };
-
-        if shared.weber > self.weber_critical {
-            let relaxation_time = 1.43 * shared.diameter * (self.fluid_density / self.gas_density).sqrt() / (self.gas_speed - state.speed()).magnitude();
-            state_variation.accumulated_stress = 1.0 / relaxation_time;
+            speed: 0.75 * self.drag_coefficient * self.gas_density / self.fluid_density / diameter * speed_difference.magnitude() * speed_difference - 1.0/self.gas_density * self.gas_pressure_grad,
+            diameter3: -evaporation_rate * self.gas_viscosity * self.nusselt * diameter / self.fluid_density,
+            accumulated_stress: 1.0 / relaxation_time
         }
-
-        state_variation
     }
 
-    fn post_integrate(&self, time: f64, previous_state: &Self::State, new_state: &mut Self::State, shared: &mut Self::Shared) {
-        if shared.weber <= self.weber_critical {
+    fn post_integrate(&self, _time: f64, previous_state: &Self::State, new_state: &mut Self::State) {
+        let previous_diameter = previous_state.diameter3().powf(1.0/3.0);
+        let previous_speed_difference = self.gas_speed - previous_state.speed();
+        let weber = self.gas_density * previous_diameter * previous_speed_difference.magnitude_squared() / self.fluid_surface_tension;
+        if weber <= self.weber_critical {
             new_state.accumulated_stress = 0.0;
         }
     }

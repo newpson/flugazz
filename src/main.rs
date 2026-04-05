@@ -9,16 +9,16 @@ use liquid_drop::{LiquidDropProblem, LiquidDropState};
 fn main() {
     // Капля воды летит в воздухе с температурой 20 градусов Цельсия
     let system = LiquidDropProblem::new(
-        1.2041, 1.8e-05, &Vector2::new(4.0, -8.0), &Vector2::new(0.0, 0.0),
-        998.0, 0.073, 1.0,
-        0.2, 0.9, 1.0
+        1.2041, 1.8e-05, &Vector2::new(40.0, -80.0), &Vector2::new(0.0, 0.0),
+        1000.0, 72.8, 1.0,
+        10.0, 0.9, 1.0
     );
 
     let initial_state = LiquidDropState::new(
-        &Vector2::new(0.0, 3.0),
-        &Vector2::new(1.0, 1.0),
-        // diameter=1mm
-        f64::powf(1e-3, 3.0));
+        &Vector2::new(0.0, 30.0),
+        &Vector2::new(10.0, 10.0),
+        // diameter=0.1mm
+        f64::powf(0.1, 3.0));
 
     let mut stepper = Rk4::new(system, &[initial_state.clone()], 0.0, 1.0, 0.1);
     let result = stepper.integrate();
