@@ -1,52 +1,55 @@
 use std::ops::{Add, Mul};
 use nalgebra::Vector2;
-// use ndarray::Array2;
 use crate::runge_kutta::System;
 
 #[derive(Debug)]
 pub struct LiquidDropProblem {
-    // area: &'a [Vector2<f64>],
-
-    /// I have no f idea what it is, just a numeric coefficient
-    c: f64,
-
-    /// kg/m3
+    /// Плотность газа, мкг/мм^3
     gas_density: f64,
 
-    /// kg/m3
-    liquid_density: f64,
+    /// Динамическая вязкость газа, Па*мс
+    gas_viscosity: f64,
 
-    /// В идеальном газе коэффициент кинематической вязкости ν = η/mn совпадает с коэффициентом диффузии.
-    /// 
-    /// Вязкость газа.
-    mu: f64,
+    /// Скорость однонаправленного потока газа, мм/мс
+    gas_speed: Vector2<f64>,
 
-    /// Число Нуссельта
-    nu: f64,
+    /// Градиент давления однонаправленного потока газа, Па/мм
+    gas_pressure_grad: Vector2<f64>,
 
-    // cells: PhaseGrid
+    /// Плотность жидкости, мкг/мм^3
+    fluid_density: f64,
 
-    /// Константа при вычислении WL
-    sigma: f64,
+    /// Коэффициент поверхностного натяжения, мкН/мм
+    fluid_surface_tension: f64,
 
-    /// Критическое значение WL
-    stress_moment_critical: f64,
+    /// Постоянное число Нуссельта, число
+    nusselt: f64,
+
+    /// Критическое значение числа Вебера, число
+    weber_critical: f64,
+
+    /// Массовый поток, число из интервала (0,1)
+    mass_flow: f64,
+
+    /// Коэффициент сопротивления газовой среды, число
+    drag_coefficient: f64,
 }
 
 impl LiquidDropProblem {
-    pub fn new(gas_density: f64, liquid_density: f64, stress_moment_critical: f64,
-               c: f64, mu: f64, nu: f64, sigma: f64) -> Self
+    pub fn new(gas_density: f64, gas_viscosity: f64, gas_speed: &Vector2<f64>, gas_pressure_grad: &Vector2<f64>,
+               fluid_density: f64, fluid_surface_tension: f64, nusselt: f64, weber_critical: f64, mass_flow: f64, c: f64) -> Self
     {
         LiquidDropProblem {
-            // area: &area,
-            c: c,
             gas_density: gas_density,
-            liquid_density: liquid_density,
-            mu: mu,
-            nu: nu,
-            // cells: grid,
-            sigma: sigma,
-            stress_moment_critical: stress_moment_critical
+            gas_viscosity: gas_viscosity,
+            gas_speed: gas_speed.clone(),
+            gas_pressure_grad: gas_pressure_grad.clone(),
+            fluid_density: fluid_density,
+            fluid_surface_tension: fluid_surface_tension,
+            nusselt: nusselt,
+            weber_critical: weber_critical,
+            mass_flow: mass_flow,
+            drag_coefficient: c,
         }
     }
 }
@@ -56,14 +59,21 @@ trait LiquidDrop<'a>: crate::runge_kutta::Vector
     fn position(&'a self) -> &'a Vector2<f64>;
     fn speed(&'a self) -> &'a Vector2<f64>;
     fn diameter3(&'a self) -> f64;
+    fn accumulated_stress(&'a self) -> f64;
 }
 
 #[derive(Clone, Debug)]
 pub struct LiquidDropState {
+    /// Радиус-вектор положения капли, (м, м)
     position: Vector2<f64>,
+
+    /// Вектор скорости капли, (м/с, м/с)
     speed: Vector2<f64>,
+
+    /// Куб диаметра капли, м^3
     diameter3: f64,
 
+    /// Накопленное напряжение капли, Гц
     accumulated_stress: f64,
 }
 
@@ -101,6 +111,10 @@ impl<'a> LiquidDrop<'a> for LiquidDropState {
     fn diameter3(&'a self) -> f64 {
         self.diameter3
     }
+
+    fn accumulated_stress(&'a self) -> f64 {
+        self.accumulated_stress
+    }
 }
 
 impl Mul<f64> for LiquidDropState {
@@ -129,68 +143,81 @@ impl Add<LiquidDropState> for LiquidDropState {
 
 impl crate::runge_kutta::Vector for LiquidDropState {}
 
-const gas_speed: Vector2<f64> = Vector2::<f64>::new(3.0, 10.0);
-const gas_pressure_grad: Vector2<f64> = Vector2::<f64>::new(-8.0, 7.0);
+#[derive(Clone, Debug)]
+pub struct LiquidDropShared {
+    diameter: f64,
+    weber: f64,
+}
 
-impl<'a> System for LiquidDropProblem
-{
-    type State = LiquidDropState;
-    fn integrate(&self, time: f64, state: &Self::State) -> Self::State {
-        let alpha = 0.75 * self.c * self.gas_density / self.liquid_density / f64::powf(state.diameter3(), 1.0/3.0);
-        // let cell = self.cells.extract_cell(&state.position);
-        // // println!("Extracted cell: {cell:?}");
-        let drop_mass = 1.0/6.0 * std::f64::consts::PI * state.diameter3() * self.liquid_density;
-        // // println!("current drop_mass: {drop_mass}");
-
-        let mut accumulated_stress = 1.0 / (1.43 * f64::powf(state.diameter3, 1.0/3.0) * f64::sqrt(self.liquid_density / self.gas_density) / (gas_speed - state.speed()).magnitude());
-        let stress_moment = self.gas_density * (gas_speed - state.speed()).magnitude_squared() * f64::powf(state.diameter3, 1.0/3.0) / self.sigma;
-        if stress_moment < self.stress_moment_critical {
-            println!("zeroing");
-            // make stress drop to zero
-            accumulated_stress = -state.accumulated_stress;
-        }
-
-        LiquidDropState {
-            position: state.speed().clone(),
-            speed: alpha * (gas_speed - state.speed()).magnitude() * (gas_speed - state.speed()) - 1.0/self.gas_density * gas_pressure_grad,
-            diameter3: -drop_mass / f64::powf(1.0 - drop_mass, 0.75) * self.mu * self.nu / self.liquid_density,
-            accumulated_stress: accumulated_stress
+impl Default for LiquidDropShared {
+    fn default() -> Self {
+        LiquidDropShared {
+            diameter: 0.0,
+            weber: 0.0,
         }
     }
+}
 
-    fn should_terminate(&self, time: f64, current: &Self::State) -> bool {
+/// Skew the vector through its normal forming `angle` between `v` and returned vector
+fn skew_transform(v: &Vector2<f64>, angle: f64) -> Vector2<f64> {
+    let tan = f64::tan(angle);
+    Vector2::new(
+        v.x - v.y * tan,
+        v.x * tan + v.y
+    )
+}
+
+impl<'a> System for LiquidDropProblem {
+    type State = LiquidDropState;
+    type Shared = LiquidDropShared;
+
+    fn should_terminate(&self, time: f64, current: &Self::State, shared: &mut Self::Shared) -> bool {
         false
     }
 
-    fn should_branch(&self, time: f64, state: &Self::State) -> Option<Vec<Self::State>> {
-        const SIN60: f64 = 0.8660254038;
-        const COS60: f64 = 0.5;
-        const ROTATE_CCW: nalgebra::Matrix2<f64> = nalgebra::Matrix2::new(
-            COS60, -SIN60,
-            SIN60, COS60
-        );
-        const ROTATE_CW: nalgebra::Matrix2<f64> = nalgebra::Matrix2::new(
-            COS60, SIN60,
-            -SIN60, COS60
-        );
-        let stress_moment = self.gas_density * (gas_speed - state.speed()).magnitude_squared() * f64::powf(state.diameter3, 1.0/3.0) / self.sigma;
-        if stress_moment > self.stress_moment_critical && state.accumulated_stress >= 1.0 {
-            let state_ccw_speed = ROTATE_CCW * state.speed;
-            let state_cw_speed = ROTATE_CW * state.speed;
+    fn should_branch(&self, time: f64, state: &Self::State, shared: &mut Self::Shared) -> Option<Vec<Self::State>> {
+        const BRANCHING_ANGLE: f64 = f64::to_radians(30.0);
+        shared.diameter = state.diameter3().powf(1.0/3.0);
+        shared.weber = self.gas_density * shared.diameter * (self.gas_speed - state.speed()).magnitude_squared() / self.fluid_surface_tension;
+
+        if shared.weber > self.weber_critical && state.accumulated_stress >= 1.0 {
             let new_diameter3 = state.diameter3 / 2.0;
             return Some(vec![
                 LiquidDropState::new(
                     &state.position,
-                    &state_ccw_speed, // NOTE: pi/3
+                    &skew_transform(&state.speed, BRANCHING_ANGLE),
                     new_diameter3,
                 ),
                 LiquidDropState::new(
                     &state.position,
-                    &state_cw_speed, // NOTE: -pi/3
+                    &skew_transform(&state.speed, -BRANCHING_ANGLE),
                     new_diameter3
                 )]
             );
         }
         None
+    }
+
+    fn integrate(&self, time: f64, state: &Self::State, shared: &mut Self::Shared) -> Self::State {
+        let evaporation_rate = -self.mass_flow / (1.0 - self.mass_flow).powf(0.75);
+        let mut state_variation = LiquidDropState {
+            position: state.speed().clone(),
+            speed: 0.75 * self.drag_coefficient * self.gas_density / self.fluid_density / shared.diameter * (self.gas_speed - state.speed()).magnitude() * (self.gas_speed - state.speed()) - 1.0/self.gas_density * self.gas_pressure_grad,
+            diameter3: evaporation_rate * self.gas_viscosity * self.nusselt * shared.diameter / self.fluid_density,
+            accumulated_stress: 0.0,
+        };
+
+        if shared.weber > self.weber_critical {
+            let relaxation_time = 1.43 * shared.diameter * (self.fluid_density / self.gas_density).sqrt() / (self.gas_speed - state.speed()).magnitude();
+            state_variation.accumulated_stress = 1.0 / relaxation_time;
+        }
+
+        state_variation
+    }
+
+    fn post_integrate(&self, time: f64, previous_state: &Self::State, new_state: &mut Self::State, shared: &mut Self::Shared) {
+        if shared.weber <= self.weber_critical {
+            new_state.accumulated_stress = 0.0;
+        }
     }
 }

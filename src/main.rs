@@ -7,28 +7,20 @@ mod liquid_drop;
 use liquid_drop::{LiquidDropProblem, LiquidDropState};
 
 fn main() {
-    // let area = [
-    //     Vector2::new(-3.0, -2.0),
-    //     Vector2::new(-4.0,  9.0),
-    //     Vector2::new( 7.0,  6.0),
-    //     Vector2::new( 5.0, -2.5),
-    //     Vector2::new(-3.0, -2.0)];
-    // let grid = PhaseGrid::new_from_polygon(&area, &Vector2::new(0.5, 0.5));
-
+    // Капля воды летит в воздухе с температурой 20 градусов Цельсия
     let system = LiquidDropProblem::new(
-        // area: &area,
-        0.6, 1000.0, 0.005,
-        1.0, 1.596855, 1.0, 1.0,
-        // cells: grid,
+        1.2041, 1.8e-05, &Vector2::new(4.0, -8.0), &Vector2::new(0.0, 0.0),
+        998.0, 0.073, 1.0,
+        0.2, 0.9, 1.0
     );
 
     let initial_state = LiquidDropState::new(
-        &Vector2::new(0.0, 2.0),
-        &Vector2::new(1.0, 0.0),
-        0.000000001);
+        &Vector2::new(0.0, 3.0),
+        &Vector2::new(1.0, 1.0),
+        // diameter=1mm
+        f64::powf(1e-3, 3.0));
 
-    let mut stepper = Rk4::new(system, &[initial_state.clone()], 0.0, 2.0, 0.1);
-
+    let mut stepper = Rk4::new(system, &[initial_state.clone()], 0.0, 1.0, 0.1);
     let result = stepper.integrate();
 
     println!("Общее число капель: {}", result.len());
@@ -39,8 +31,6 @@ fn main() {
         println!("Конец: {:?}", sequence.time_end());
         for state in sequence.states() {
             println!("  {state:?}");
-            // println!("  {},{}", state.position.x, state.position.y);
         }
     }
 }
-
