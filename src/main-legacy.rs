@@ -1,8 +1,8 @@
 use float_cmp::approx_eq;
-use nalgebra::{Vector2};
+use nalgebra::Vector2;
 // use ode_solvers::{Vector2, Vector3, Vector5};
 use ndarray::Array2;
-use ode_solvers::{System, Rk4};
+use ode_solvers::{Rk4, System};
 use std::convert::{From, Into};
 
 #[derive(Debug)]
@@ -30,7 +30,10 @@ fn ceil_approx(value: f64) -> f64 {
     ceiled
 }
 
-fn calc_point_polygon_location(target: &Vector2<f64>, polygon: &[Vector2<f64>]) -> PointPolygonLocation {
+fn calc_point_polygon_location(
+    target: &Vector2<f64>,
+    polygon: &[Vector2<f64>],
+) -> PointPolygonLocation {
     let mut w: i32 = 0;
     let mut hw: i32 = 0;
 
@@ -38,7 +41,7 @@ fn calc_point_polygon_location(target: &Vector2<f64>, polygon: &[Vector2<f64>]) 
         if points_pair[0] == points_pair[1] {
             continue;
         }
-        
+
         // move `target` to (0, 0)
         let current = &points_pair[0] - target;
         let next = &points_pair[1] - target;
@@ -50,9 +53,10 @@ fn calc_point_polygon_location(target: &Vector2<f64>, polygon: &[Vector2<f64>]) 
 
             // Check if `target` lies on the edge of `polygon`
             // HACK: t component will be NaN if corresponding u and v components will be 0
-            if t.x.is_nan() && t.y >= 0.0 && t.y <= 1.0 ||
-               t.y.is_nan() && t.x >= 0.0 && t.x <= 1.0 ||
-               t.x == t.y {
+            if t.x.is_nan() && t.y >= 0.0 && t.y <= 1.0
+                || t.y.is_nan() && t.x >= 0.0 && t.x <= 1.0
+                || t.x == t.y
+            {
                 return PointPolygonLocation::EDGE;
             }
 
@@ -63,7 +67,8 @@ fn calc_point_polygon_location(target: &Vector2<f64>, polygon: &[Vector2<f64>]) 
                 let delta = if next.y > current.y { 1 } else { -1 };
                 if ycomp == 0.0 {
                     hw += delta;
-                } else { // ycomp < 0
+                } else {
+                    // ycomp < 0
                     w += delta;
                 }
             }
@@ -71,10 +76,10 @@ fn calc_point_polygon_location(target: &Vector2<f64>, polygon: &[Vector2<f64>]) 
     }
 
     // NOTE: non-zero rule for winding number
-    if w + hw/2 + hw%2 != 0 {
+    if w + hw / 2 + hw % 2 != 0 {
         return PointPolygonLocation::INSIDE;
     }
- 
+
     PointPolygonLocation::OUTSIDE
 }
 
@@ -91,15 +96,12 @@ struct PhaseGrid {
     origin: Vector2<f64>,
     step: Vector2<f64>,
     size: Vector2<usize>,
-    cells: Array2<PhaseCell>
+    cells: Array2<PhaseCell>,
 }
 
 impl PhaseGrid {
     fn floor_approx_vector(vector: &Vector2<f64>) -> Vector2<f64> {
-        Vector2::new(
-            floor_approx(vector.x),
-            floor_approx(vector.y)
-        )
+        Vector2::new(floor_approx(vector.x), floor_approx(vector.y))
     }
 
     fn vector_to_grid(vector: &Vector2<f64>, step: &Vector2<f64>) -> Vector2<usize> {
@@ -128,10 +130,18 @@ impl PhaseGrid {
         let mut max = polygon[0];
 
         for point in polygon {
-            if point.x < min.x { min.x = point.x }
-            if point.y < min.y { min.y = point.y }
-            if point.x > max.x { max.x = point.x }
-            if point.y > max.y { max.y = point.y }
+            if point.x < min.x {
+                min.x = point.x
+            }
+            if point.y < min.y {
+                min.y = point.y
+            }
+            if point.x > max.x {
+                max.x = point.x
+            }
+            if point.y > max.y {
+                max.y = point.y
+            }
         }
 
         let size = PhaseGrid::vector_to_grid(&(max - min), &step) + Vector2::<usize>::new(1, 1);
@@ -142,7 +152,8 @@ impl PhaseGrid {
             PhaseCell {
                 gas_speed: Vector2::new(10.0, 0.0),
                 gas_pressure_grad: Vector2::new(-3.0, 0.0),
-            });
+            },
+        );
         PhaseGrid {
             origin: min,
             step: *step,
@@ -152,13 +163,11 @@ impl PhaseGrid {
     }
 }
 
-
 #[derive(Debug)]
 struct LiquidDropState {
     position: Vector2<f64>,
     speed: Vector2<f64>,
     diameter3: f64,
-    
     // fragmentation state
     // accumulated_stress: f64,
     // stress: f64,
@@ -169,9 +178,12 @@ struct LiquidDropState {
 impl Into<ode_solvers::Vector5<f64>> for LiquidDropState {
     fn into(self) -> ode_solvers::Vector5<f64> {
         ode_solvers::Vector5::new(
-            self.position.x, self.position.y,
-            self.speed.x, self.speed.y,
-            self.diameter3)
+            self.position.x,
+            self.position.y,
+            self.speed.x,
+            self.speed.y,
+            self.diameter3,
+        )
     }
 }
 
@@ -181,7 +193,7 @@ impl From<ode_solvers::Vector5<f64>> for LiquidDropState {
         LiquidDropState {
             position: Vector2::new(vector[0], vector[1]),
             speed: Vector2::new(vector[2], vector[3]),
-            diameter3: vector[4]
+            diameter3: vector[4],
         }
     }
 }
@@ -199,29 +211,36 @@ struct LiquidDropProblem<'a> {
     liquid_density: f64,
 
     /// В идеальном газе коэффициент кинематической вязкости ν = η/mn совпадает с коэффициентом диффузии.
-    /// 
+    ///
     /// Вязкость газа.
     mu: f64,
 
     // Число Нуссельта
     nu: f64,
 
-    cells: PhaseGrid
+    cells: PhaseGrid,
 }
 
 impl<'a> System<f64, ode_solvers::Vector5<f64>> for LiquidDropProblem<'a> {
     fn system(&self, t: f64, u: &ode_solvers::Vector5<f64>, du: &mut ode_solvers::Vector5<f64>) {
         let state: LiquidDropState = (*u).into();
-        let alpha = 0.75 * self.c * self.gas_density / self.liquid_density / f64::powf(state.diameter3, 1.0/3.0);
+        let alpha = 0.75 * self.c * self.gas_density
+            / self.liquid_density
+            / f64::powf(state.diameter3, 1.0 / 3.0);
         let cell = self.cells.extract_cell(&state.position);
         // println!("Extracted cell: {cell:?}");
-        let drop_mass = 1.0/6.0 * std::f64::consts::PI * state.diameter3 * self.liquid_density;
+        let drop_mass = 1.0 / 6.0 * std::f64::consts::PI * state.diameter3 * self.liquid_density;
         // println!("current drop_mass: {drop_mass}");
 
-        let dspeedx = alpha * (cell.gas_speed - state.speed).magnitude() * (cell.gas_speed.x - state.speed.x) - 1.0/self.gas_density * cell.gas_pressure_grad.x;
-        let dspeedy = alpha * (cell.gas_speed - state.speed).magnitude() * (cell.gas_speed.y - state.speed.y) - 1.0/self.gas_density * cell.gas_pressure_grad.y;
-        
-        let ddiameter3 = -drop_mass / f64::powf(1.0 - drop_mass, 0.75) * self.mu * self.nu / self.liquid_density;
+        let dspeedx =
+            alpha * (cell.gas_speed - state.speed).magnitude() * (cell.gas_speed.x - state.speed.x)
+                - 1.0 / self.gas_density * cell.gas_pressure_grad.x;
+        let dspeedy =
+            alpha * (cell.gas_speed - state.speed).magnitude() * (cell.gas_speed.y - state.speed.y)
+                - 1.0 / self.gas_density * cell.gas_pressure_grad.y;
+
+        let ddiameter3 =
+            -drop_mass / f64::powf(1.0 - drop_mass, 0.75) * self.mu * self.nu / self.liquid_density;
         // println!("diameter3={}, drop_mass={drop_mass}", state.diameter3)1;
         // let ddiameter3 = 0.0;
 
@@ -229,22 +248,28 @@ impl<'a> System<f64, ode_solvers::Vector5<f64>> for LiquidDropProblem<'a> {
         let dy = state.speed.y;
 
         println!("Current state: {state:?}");
-        
+
         *du = LiquidDropState {
             position: Vector2::new(dx, dy),
             speed: Vector2::new(dspeedx, dspeedy),
             diameter3: ddiameter3,
-        }.into()
+        }
+        .into()
     }
 
-    fn solout(&mut self, t: f64, u: &ode_solvers::Vector5<f64>, du: &ode_solvers::Vector5<f64>) -> bool {
+    fn solout(
+        &mut self,
+        t: f64,
+        u: &ode_solvers::Vector5<f64>,
+        du: &ode_solvers::Vector5<f64>,
+    ) -> bool {
         let state: LiquidDropState = (*u).into();
         match calc_point_polygon_location(&state.position, self.area) {
             PointPolygonLocation::EDGE => return false,
             PointPolygonLocation::INSIDE => return false,
             PointPolygonLocation::OUTSIDE => {
                 println!("Outside: {state:?}");
-                return true
+                return true;
             }
         }
     }
@@ -254,7 +279,7 @@ impl<'a> System<f64, ode_solvers::Vector5<f64>> for LiquidDropProblem<'a> {
 //     const stress_moment_critical: f64 = 1.0;
 //     if drop.stress_moment > stress_moment_critical {
 //         if drop.accumulated_stress >= 1.0 {
-            
+
 //         }
 //     }
 //     None
@@ -263,10 +288,11 @@ impl<'a> System<f64, ode_solvers::Vector5<f64>> for LiquidDropProblem<'a> {
 fn main() {
     let area = [
         Vector2::new(-3.0, -2.0),
-        Vector2::new(-4.0,  9.0),
-        Vector2::new( 7.0,  6.0),
-        Vector2::new( 5.0, -2.5),
-        Vector2::new(-3.0, -2.0)];
+        Vector2::new(-4.0, 9.0),
+        Vector2::new(7.0, 6.0),
+        Vector2::new(5.0, -2.5),
+        Vector2::new(-3.0, -2.0),
+    ];
     let grid = PhaseGrid::new_from_polygon(&area, &Vector2::new(0.5, 0.5));
 
     let system = LiquidDropProblem {
@@ -277,17 +303,16 @@ fn main() {
         // mu: 1001.596855,
         mu: 1.596855,
         nu: 1.0,
-        cells: grid
+        cells: grid,
     };
 
     let initial_state = LiquidDropState {
         position: Vector2::new(0.0, 2.0),
         speed: Vector2::new(3.0, 0.5),
-        diameter3: 0.001
+        diameter3: 0.001,
     };
 
-    let mut stepper= Rk4::new(
-        system, 0.0, initial_state.into(), 1.0, 0.1);
+    let mut stepper = Rk4::new(system, 0.0, initial_state.into(), 1.0, 0.1);
 
     let result = stepper.integrate().unwrap();
     let things = stepper.y_out();

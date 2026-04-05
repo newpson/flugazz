@@ -27,10 +27,10 @@ pub trait System {
 }
 
 #[derive(Debug)]
-pub struct StateSequence<TSystem: System>  {
+pub struct StateSequence<TSystem: System> {
     time_begin: f64,
     time_end: Option<f64>,
-    states: Vec<TSystem::State>
+    states: Vec<TSystem::State>,
 }
 
 impl<TSystem: System> StateSequence<TSystem> {
@@ -61,13 +61,14 @@ pub struct Rk4<TSystem: System> {
     sequence_storage: Vec<StateSequence<TSystem>>,
 }
 
-impl<TSystem: System> Rk4<TSystem>
-{
+impl<TSystem: System> Rk4<TSystem> {
     /// Let's start with a single `process` at moment `t_begin` and run this process with step `t_step` using `system` till `t_end`
     pub fn new(
         system: TSystem,
         states: &[TSystem::State],
-        time_begin: f64, time_end: f64, time_step: f64
+        time_begin: f64,
+        time_end: f64,
+        time_step: f64,
     ) -> Self {
         debug_assert!(time_step > 0.0 && time_end >= time_begin);
         let mut storage = Vec::with_capacity(states.len());
@@ -75,7 +76,7 @@ impl<TSystem: System> Rk4<TSystem>
             storage.push(StateSequence {
                 time_begin: time_begin,
                 time_end: None,
-                states: vec![state.clone()]
+                states: vec![state.clone()],
             })
         }
         Rk4 {
@@ -84,7 +85,7 @@ impl<TSystem: System> Rk4<TSystem>
             time_end: time_end,
             time_step: time_step,
             states: states.iter().cloned().enumerate().collect(),
-            sequence_storage: storage
+            sequence_storage: storage,
         }
     }
 
@@ -115,18 +116,27 @@ impl<TSystem: System> Rk4<TSystem>
                 // and proceed only after all removal operations
                 let state = &self.states[i].1;
                 let h = self.time_step;
-                let h2 = h/2.0;
-                let h6 = h/6.0;
+                let h2 = h / 2.0;
+                let h6 = h / 6.0;
                 // FIXME: (may be) clone() hell; Mul and Add for references
                 let k1 = self.system.integrate(self.time, state);
-                let k2 = self.system.integrate(self.time + h2, &(state.clone() + k1.clone() * h2));
-                let k3 = self.system.integrate(self.time + h2, &(state.clone() + k2.clone() * h2));
-                let k4 = self.system.integrate(self.time + h, &(state.clone() + k3.clone() * h));
+                let k2 = self
+                    .system
+                    .integrate(self.time + h2, &(state.clone() + k1.clone() * h2));
+                let k3 = self
+                    .system
+                    .integrate(self.time + h2, &(state.clone() + k2.clone() * h2));
+                let k4 = self
+                    .system
+                    .integrate(self.time + h, &(state.clone() + k3.clone() * h));
 
-                let mut new_state = state.clone() + (k1 + k2*2.0 + k3*2.0 + k4) * h6;
-                self.system.post_integrate(self.time, &self.states[i].1, &mut new_state);
+                let mut new_state = state.clone() + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * h6;
+                self.system
+                    .post_integrate(self.time, &self.states[i].1, &mut new_state);
                 self.states[i].1 = new_state;
-                self.sequence_storage[self.states[i].0].states.push(self.states[i].1.clone());
+                self.sequence_storage[self.states[i].0]
+                    .states
+                    .push(self.states[i].1.clone());
 
                 i += 1;
             }
@@ -140,9 +150,14 @@ impl<TSystem: System> Rk4<TSystem>
 
     fn append(&mut self, state: &TSystem::State) {
         // add new state into active states
-        self.states.push((self.sequence_storage.len(), state.clone()));
+        self.states
+            .push((self.sequence_storage.len(), state.clone()));
         // and create new state sequence
-        self.sequence_storage.push(StateSequence { time_begin: self.time, time_end: None, states: vec![state.clone()] });
+        self.sequence_storage.push(StateSequence {
+            time_begin: self.time,
+            time_end: None,
+            states: vec![state.clone()],
+        });
     }
 
     fn remove(&mut self, i: usize) {
