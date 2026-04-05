@@ -52,13 +52,18 @@ impl<TSystem: System> StateSequence<TSystem> {
 }
 
 pub struct Rk4<TSystem: System> {
+    /// Implements the set of methods that are used during the integration process and solves a specific problem (model)
     system: TSystem,
+    /// Current time
     time: f64,
+    /// The time (including) when the integration process will be stopped
     time_end: f64,
+    /// The difference between two adjacent time points.
     time_step: f64,
-    /// `(id, state)`; where `id` is index in the `sequence_storage`
-    states: Vec<(usize, TSystem::State)>,
-    sequence_storage: Vec<StateSequence<TSystem>>,
+    /// Stores all the state sequences (dead ones have `time_end` set).
+    storage: Vec<StateSequence<TSystem>>,
+    /// Stores the indicies of the state sequences in storage that are currently alive (`time_end` is not set).
+    alive: Vec<usize>,
 }
 
 impl<TSystem: System> Rk4<TSystem> {
@@ -72,20 +77,22 @@ impl<TSystem: System> Rk4<TSystem> {
     ) -> Self {
         debug_assert!(time_step > 0.0 && time_end >= time_begin);
         let mut storage = Vec::with_capacity(states.len());
-        for state in states {
+        let mut alive = Vec::with_capacity(states.len());
+        for (i, state) in states.iter().enumerate() {
             storage.push(StateSequence {
                 time_begin: time_begin,
                 time_end: None,
                 states: vec![state.clone()],
-            })
+            });
+            alive.push(i);
         }
         Rk4 {
             system: system,
             time: time_begin,
             time_end: time_end,
             time_step: time_step,
-            states: states.iter().cloned().enumerate().collect(),
-            sequence_storage: storage,
+            storage: storage,
+            alive: alive,
         }
     }
 
@@ -93,50 +100,43 @@ impl<TSystem: System> Rk4<TSystem> {
         while self.time <= self.time_end {
             let mut num_removed: usize = 0;
             let mut i = 0;
-            while i < self.states.len() - num_removed {
-                // check removal conditions
-                if self.system.should_terminate(self.time, &self.states[i].1) {
-                    self.remove(i);
+            while i < self.alive.len() - num_removed {
+                let last_state = self.storage[self.alive[i]].states.last().unwrap();
+
+                if self.system.should_terminate(self.time, last_state) {
+                    self.kill(i);
                     num_removed += 1;
                     continue;
                 }
 
-                // check branch conditions (when single process splits into multiple)
-                if let Some(new_states) = self.system.should_branch(self.time, &self.states[i].1) {
-                    // add new states
-                    for new_state in new_states.iter() {
-                        self.append(new_state);
+                if let Some(new_states) = self.system.should_branch(self.time, last_state) {
+                    for new_state in new_states {
+                        self.spawn(new_state);
                     }
-                    // and remove the state from which new states branched off
-                    self.remove(i);
+                    self.kill(i);
                     num_removed += 1;
                     continue;
                 }
 
-                // and proceed only after all removal operations
-                let state = &self.states[i].1;
                 let h = self.time_step;
                 let h2 = h / 2.0;
                 let h6 = h / 6.0;
-                // FIXME: (may be) clone() hell; Mul and Add for references
-                let k1 = self.system.integrate(self.time, state);
+                // FIXME: clone() hell;
+                let k1 = self.system.integrate(self.time, last_state);
                 let k2 = self
                     .system
-                    .integrate(self.time + h2, &(state.clone() + k1.clone() * h2));
+                    .integrate(self.time + h2, &(last_state.clone() + k1.clone() * h2));
                 let k3 = self
                     .system
-                    .integrate(self.time + h2, &(state.clone() + k2.clone() * h2));
+                    .integrate(self.time + h2, &(last_state.clone() + k2.clone() * h2));
                 let k4 = self
                     .system
-                    .integrate(self.time + h, &(state.clone() + k3.clone() * h));
+                    .integrate(self.time + h, &(last_state.clone() + k3.clone() * h));
 
-                let mut new_state = state.clone() + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * h6;
+                let mut new_state = last_state.clone() + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * h6;
                 self.system
-                    .post_integrate(self.time, &self.states[i].1, &mut new_state);
-                self.states[i].1 = new_state;
-                self.sequence_storage[self.states[i].0]
-                    .states
-                    .push(self.states[i].1.clone());
+                    .post_integrate(self.time, last_state, &mut new_state);
+                self.storage[self.alive[i]].states.push(new_state);
 
                 i += 1;
             }
@@ -145,25 +145,20 @@ impl<TSystem: System> Rk4<TSystem> {
                 self.time = self.time_end;
             }
         }
-        &self.sequence_storage
+        &self.storage
     }
 
-    fn append(&mut self, state: &TSystem::State) {
-        // add new state into active states
-        self.states
-            .push((self.sequence_storage.len(), state.clone()));
-        // and create new state sequence
-        self.sequence_storage.push(StateSequence {
+    fn spawn(&mut self, state: TSystem::State) {
+        self.alive.push(self.storage.len());
+        self.storage.push(StateSequence {
             time_begin: self.time,
             time_end: None,
-            states: vec![state.clone()],
+            states: vec![state],
         });
     }
 
-    fn remove(&mut self, i: usize) {
-        // remove from active states
-        let j = self.states.swap_remove(i).0;
-        // and mark as dead in the storage
-        self.sequence_storage[j].time_end = Some(self.time);
+    fn kill(&mut self, i_alive: usize) {
+        let i_storage = self.alive.swap_remove(i_alive);
+        self.storage[i_storage].time_end = Some(self.time);
     }
 }
