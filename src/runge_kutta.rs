@@ -100,7 +100,7 @@ impl<TSystem: System> Rk4<TSystem> {
         while self.time <= self.time_end {
             let mut num_removed: usize = 0;
             let mut i = 0;
-            while i < self.alive.len() - num_removed {
+            while self.alive.len() > num_removed && i < self.alive.len() - num_removed {
                 let last_state = self.storage[self.alive[i]].states.last().unwrap();
 
                 if self.system.should_terminate(self.time, last_state) {
