@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 nalgebra = { version = "0", default-features = false }
-simba = "0" # implicitly required by `nalgebra` for magnitude()
-ndarray = { version = "0", default-features = false }
-float-cmp = { version = "0", default-features = false }
+simba = "0" # implicitly required by `nalgebra` for magnitude*()
+
+[lib]
+crate-type = ["rlib", "staticlib"]
