@@ -1,30 +1,34 @@
+use drop::liquid_drop::*;
+use drop::runge_kutta::*;
 use nalgebra::Vector2;
 
-mod runge_kutta;
-use runge_kutta::Rk4;
-
-mod liquid_drop;
-use liquid_drop::{LiquidDropProblem, LiquidDropState};
-
 fn main() {
-    // Капля воды летит в воздухе с температурой 20 градусов Цельсия
+    // Капля воды летит в воздухе при нормальном давлении и температуре 20 градусов Цельсия
     let system = LiquidDropProblem::new(
         1.2041,
         1.8e-05,
-        &Vector2::new(40.0, -80.0),
-        &Vector2::new(0.0, 0.0),
+        PhaseGrid::new(
+            &[
+                Vector2::new(0.0,  0.0),
+                Vector2::new(0.0,  30.0),
+                Vector2::new(30.0,  30.0),
+                Vector2::new(30.0,  0.0),
+                Vector2::new(0.0,  0.0),
+            ],
+            Vector2::new(10.0, 10.0),
+        ),
         1000.0,
         72.8,
-        1.0,
+        500.0,
         10.0,
-        0.9,
+        0.99,
         1.0,
     );
 
     let initial_state = LiquidDropState::new(
-        &Vector2::new(0.0, 30.0),
-        &Vector2::new(10.0, 10.0),
-        // diameter=0.1mm
+        &Vector2::new(0.5, 1.0),
+        &Vector2::new(1.0, 1.0),
+        // diameter: 0.1mm
         f64::powf(0.1, 3.0),
     );
 
