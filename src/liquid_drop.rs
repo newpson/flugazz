@@ -1,6 +1,7 @@
 use crate::approx;
 use crate::runge_kutta::System;
 use nalgebra::Vector2;
+use nalgebra::geometry::Point2;
 use std::ops::{Add, Mul};
 use std::ops::Index;
 
@@ -28,8 +29,8 @@ impl PhaseCell {
 
 #[derive(Debug)]
 pub struct PhaseGrid {
-    area_polygon: Vec<Vector2<f64>>,
-    grid_origin: Vector2<f64>,
+    area_polygon: Vec<Point2<f64>>,
+    grid_origin: Point2<f64>,
     grid_size: Vector2<usize>,
     cell_size: Vector2<f64>,
     cells: Vec<PhaseCell>,
@@ -46,7 +47,7 @@ pub enum Location {
 impl PhaseGrid {
     /// Get bounding box of the polygon.
     /// Returns the corners of the bounding box `(bottom_left, top_right)`.
-    pub fn get_bounds(polygon: &[Vector2<f64>]) -> (Vector2<f64>, Vector2<f64>) {
+    pub fn get_bounds(polygon: &[Point2<f64>]) -> (Point2<f64>, Point2<f64>) {
         let mut bottom_left = polygon[0];
         let mut top_right = polygon[0];
         for point in polygon.iter() {
@@ -66,7 +67,7 @@ impl PhaseGrid {
         (bottom_left, top_right)
     }
 
-    pub fn new(polygon: &[Vector2<f64>], cell_size: Vector2<f64>) -> PhaseGrid {
+    pub fn new(polygon: &[Point2<f64>], cell_size: Vector2<f64>) -> PhaseGrid {
         let (bottom_left, top_right) = Self::get_bounds(polygon);
         let grid_size_float = approx::ceil_vec(top_right - bottom_left).component_div(&cell_size);
         let grid_size = Vector2::new(grid_size_float.x as usize, grid_size_float.y as usize);
@@ -83,7 +84,7 @@ impl PhaseGrid {
         }
     }
 
-    pub fn sample<'a>(&'a self, point: Vector2<f64>) -> Option<&'a PhaseCell> {
+    pub fn sample<'a>(&'a self, point: Point2<f64>) -> Option<&'a PhaseCell> {
         // TODO: sampling from multiple points (linear interpolation insted of nearest)
         let cool = approx::floor_vec((point - self.grid_origin).component_div(&self.cell_size));
         if cool.x.is_sign_negative() || cool.y.is_sign_negative() {
@@ -97,7 +98,7 @@ impl PhaseGrid {
     }
 
     // Check whether the target point is inside, on the edge or outside the polygon
-    pub fn locate(target: &Vector2<f64>, polygon: &[Vector2<f64>]) -> Location {
+    pub fn locate(target: &Point2<f64>, polygon: &[Point2<f64>]) -> Location {
         let mut revolutions: i32 = 0;
         let mut half_revolutions: i32 = 0;
 
@@ -148,7 +149,7 @@ impl PhaseGrid {
     }
 
     // Check whether the target point is inside, on the edge or outside the self.polygon
-    pub fn locate_self(&self, target: &Vector2<f64>) -> Location {
+    pub fn locate_self(&self, target: &Point2<f64>) -> Location {
         Self::locate(target, self.area_polygon.as_slice())
     }
 }
@@ -157,20 +158,20 @@ impl PhaseGrid {
 mod tests {
     // TODO: test_locate with more complicated polygon
     use super::*;
-    const AREA_POLYGON: [Vector2<f64>; 5] = [
-        Vector2::new(0.0, 0.0),
-        Vector2::new(0.0, 5.0),
-        Vector2::new(5.0, 5.0),
-        Vector2::new(5.0, 0.0),
-        Vector2::new(0.0, 0.0),
+    const AREA_POLYGON: [Point2<f64>; 5] = [
+        Point2::new(0.0, 0.0),
+        Point2::new(0.0, 5.0),
+        Point2::new(5.0, 5.0),
+        Point2::new(5.0, 0.0),
+        Point2::new(0.0, 0.0),
     ];
 
-    const AREA_WIDE_POLYGON: [Vector2<f64>; 5] = [
-        Vector2::new(0.0, 0.0),
-        Vector2::new(0.0, 5.0),
-        Vector2::new(10.0, 5.0),
-        Vector2::new(10.0, 0.0),
-        Vector2::new(0.0, 0.0),
+    const AREA_WIDE_POLYGON: [Point2<f64>; 5] = [
+        Point2::new(0.0, 0.0),
+        Point2::new(0.0, 5.0),
+        Point2::new(10.0, 5.0),
+        Point2::new(10.0, 0.0),
+        Point2::new(0.0, 0.0),
     ];
 
     #[test]
@@ -179,7 +180,7 @@ mod tests {
             &AREA_POLYGON,
             Vector2::new(1.0, 1.0),
         );
-        assert!(phase_grid.sample(Vector2::new(-1.0, -1.0)).is_none());
+        assert!(phase_grid.sample(Point2::new(-1.0, -1.0)).is_none());
     }
 
     #[test]
@@ -188,7 +189,7 @@ mod tests {
             &AREA_POLYGON,
             Vector2::new(1.0, 1.0),
         );
-        assert!(phase_grid.sample(Vector2::new(0.0, 0.0)).is_some());
+        assert!(phase_grid.sample(Point2::new(0.0, 0.0)).is_some());
     }
 
     #[test]
@@ -197,7 +198,7 @@ mod tests {
             &AREA_POLYGON,
             Vector2::new(1.0, 1.0),
         );
-        assert!(phase_grid.sample(Vector2::new(4.99, 5.0)).is_none());
+        assert!(phase_grid.sample(Point2::new(4.99, 5.0)).is_none());
     }
 
     #[test]
@@ -206,7 +207,7 @@ mod tests {
             &AREA_WIDE_POLYGON,
             Vector2::new(2.0, 1.0),
         );
-        assert!(phase_grid.sample(Vector2::new(9.99, 4.99)).is_some());
+        assert!(phase_grid.sample(Point2::new(9.99, 4.99)).is_some());
     }
 
     #[test]
@@ -215,44 +216,44 @@ mod tests {
             &AREA_WIDE_POLYGON,
             Vector2::new(2.0, 1.0),
         );
-        assert!(phase_grid.sample(Vector2::new(10.0, 0.0)).is_none());
+        assert!(phase_grid.sample(Point2::new(10.0, 0.0)).is_none());
     }
 
     #[test]
     fn test_locate_edge() {
-        assert_eq!(PhaseGrid::locate(&Vector2::new(0.0, 0.0), &AREA_WIDE_POLYGON), Location::EDGE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(0.0, 3.0), &AREA_WIDE_POLYGON), Location::EDGE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(0.01, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(3.0, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(9.99, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(10.0, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(10.0, 4.99), &AREA_WIDE_POLYGON), Location::EDGE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(10.0, 0.01), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(0.0, 0.0), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(0.0, 3.0), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(0.01, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(3.0, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(9.99, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(10.0, 5.0), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(10.0, 4.99), &AREA_WIDE_POLYGON), Location::EDGE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(10.0, 0.01), &AREA_WIDE_POLYGON), Location::EDGE);
     }
 
     #[test]
     fn test_locate_inside() {
-        assert_eq!(PhaseGrid::locate(&Vector2::new(0.01, 0.01), &AREA_WIDE_POLYGON), Location::INSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(0.01, 4.99), &AREA_WIDE_POLYGON), Location::INSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(9.99, 0.01), &AREA_WIDE_POLYGON), Location::INSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(9.99, 4.99), &AREA_WIDE_POLYGON), Location::INSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(2.0, 3.0), &AREA_WIDE_POLYGON), Location::INSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(0.01, 0.01), &AREA_WIDE_POLYGON), Location::INSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(0.01, 4.99), &AREA_WIDE_POLYGON), Location::INSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(9.99, 0.01), &AREA_WIDE_POLYGON), Location::INSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(9.99, 4.99), &AREA_WIDE_POLYGON), Location::INSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(2.0, 3.0), &AREA_WIDE_POLYGON), Location::INSIDE);
     }
 
     #[test]
     fn test_locate_outside() {
-        assert_eq!(PhaseGrid::locate(&Vector2::new(-0.01, 0.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(-0.01, 5.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(10.01, 0.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(10.01, 5.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(0.0, -0.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(10.0, -0.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(0.0, 5.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(10.0, 5.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(100.0, 200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(100.0, -200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(-100.0, 200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
-        assert_eq!(PhaseGrid::locate(&Vector2::new(-100.0, -200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(-0.01, 0.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(-0.01, 5.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(10.01, 0.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(10.01, 5.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(0.0, -0.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(10.0, -0.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(0.0, 5.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(10.0, 5.01), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(100.0, 200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(100.0, -200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(-100.0, 200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
+        assert_eq!(PhaseGrid::locate(&Point2::new(-100.0, -200.0), &AREA_WIDE_POLYGON), Location::OUTSIDE);
     }
 }
 
@@ -321,8 +322,8 @@ impl LiquidDropProblem {
     }
 }
 
-trait LiquidDrop<'a>: crate::runge_kutta::Vector {
-    fn position(&'a self) -> &'a Vector2<f64>;
+trait LiquidDrop<'a>: crate::runge_kutta::Linear {
+    fn position(&'a self) -> &'a Point2<f64>;
     fn speed(&'a self) -> &'a Vector2<f64>;
     fn diameter3(&'a self) -> f64;
     fn accumulated_stress(&'a self) -> f64;
@@ -331,7 +332,7 @@ trait LiquidDrop<'a>: crate::runge_kutta::Vector {
 #[derive(Clone, Debug)]
 pub struct LiquidDropState {
     /// Радиус-вектор положения капли, мм
-    position: Vector2<f64>,
+    position: Point2<f64>,
 
     /// Вектор скорости капли, мм/мс
     speed: Vector2<f64>,
@@ -345,7 +346,7 @@ pub struct LiquidDropState {
 
 impl LiquidDropState {
     pub fn new_with_stress(
-        position: &Vector2<f64>,
+        position: &Point2<f64>,
         speed: &Vector2<f64>,
         diameter3: f64,
         accumulated_stress: f64,
@@ -358,13 +359,13 @@ impl LiquidDropState {
         }
     }
 
-    pub fn new(position: &Vector2<f64>, speed: &Vector2<f64>, diameter3: f64) -> Self {
+    pub fn new(position: &Point2<f64>, speed: &Vector2<f64>, diameter3: f64) -> Self {
         LiquidDropState::new_with_stress(position, speed, diameter3, 0.0)
     }
 }
 
 impl<'a> LiquidDrop<'a> for LiquidDropState {
-    fn position(&'a self) -> &'a Vector2<f64> {
+    fn position(&'a self) -> &'a Point2<f64> {
         &self.position
     }
 
@@ -397,7 +398,7 @@ impl Add<LiquidDropState> for LiquidDropState {
     type Output = Self;
     fn add(self, rhs: LiquidDropState) -> Self::Output {
         LiquidDropState {
-            position: self.position + rhs.position,
+            position: Point2::new(self.position.x + rhs.position.x, self.position.y + rhs.position.y),
             speed: self.speed + rhs.speed,
             diameter3: self.diameter3 + rhs.diameter3,
             accumulated_stress: self.accumulated_stress + rhs.accumulated_stress,
@@ -405,7 +406,7 @@ impl Add<LiquidDropState> for LiquidDropState {
     }
 }
 
-impl crate::runge_kutta::Vector for LiquidDropState {}
+impl crate::runge_kutta::Linear for LiquidDropState {}
 
 /// Skew the vector through its normal forming `angle` between `v` and returned vector
 fn skew_transform(v: &Vector2<f64>, angle: f64) -> Vector2<f64> {
@@ -452,7 +453,7 @@ impl<'a> System for LiquidDropProblem {
             / (cell.gas_speed - state.speed()).magnitude();
 
         LiquidDropState {
-            position: state.speed().clone(),
+            position: Point2::new(state.speed().x, state.speed().y),
             speed: 0.75 * self.drag_coefficient * self.gas_density / self.fluid_density / diameter
                 * speed_difference.magnitude()
                 * speed_difference

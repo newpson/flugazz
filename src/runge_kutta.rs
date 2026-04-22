@@ -1,9 +1,9 @@
 use std::ops::{Add, Mul};
 
-pub trait Vector: Clone + Add<Self, Output = Self> + Mul<f64, Output = Self> {}
+pub trait Linear: Clone + Add<Self, Output = Self> + Mul<f64, Output = Self> {}
 
 pub trait System {
-    type State: Vector;
+    type State: Linear;
 
     /// Should current state be terminated
     #[allow(unused)]
