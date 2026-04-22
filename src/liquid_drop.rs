@@ -473,7 +473,7 @@ impl<'a> System for LiquidDropProblem<'a> {
     }
 
     fn post_integrate(
-        &self,
+        &mut self,
         _time: f64,
         previous_state: &Self::State,
         new_state: &mut Self::State,

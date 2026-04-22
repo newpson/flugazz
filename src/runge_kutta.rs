@@ -23,7 +23,7 @@ pub trait System {
 
     /// Change some properties after integration step if needed
     #[allow(unused)]
-    fn post_integrate(&self, time: f64, previous_state: &Self::State, new_state: &mut Self::State);
+    fn post_integrate(&mut self, time: f64, previous_state: &Self::State, new_state: &mut Self::State);
 }
 
 #[derive(Debug)]
