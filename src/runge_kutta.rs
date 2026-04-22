@@ -34,8 +34,8 @@ pub struct StateSequence<TSystem: System> {
 }
 
 impl<TSystem: System> StateSequence<TSystem> {
-    pub fn is_done(&self) -> bool {
-        self.time_end.is_some()
+    pub fn is_alive(&self) -> bool {
+        self.time_end.is_none()
     }
 
     pub fn time_begin(&self) -> f64 {
@@ -46,7 +46,7 @@ impl<TSystem: System> StateSequence<TSystem> {
         self.time_end
     }
 
-    pub fn states(&self) -> &Vec<TSystem::State> {
+    pub fn states(&self) -> &[TSystem::State] {
         &self.states
     }
 }
@@ -96,7 +96,7 @@ impl<TSystem: System> Rk4<TSystem> {
         }
     }
 
-    pub fn integrate(&mut self) -> &Vec<StateSequence<TSystem>> {
+    pub fn integrate(&mut self) -> &[StateSequence<TSystem>] {
         while self.time <= self.time_end {
             let mut num_removed: usize = 0;
             let mut i = 0;
@@ -145,7 +145,7 @@ impl<TSystem: System> Rk4<TSystem> {
                 self.time = self.time_end;
             }
         }
-        &self.storage
+        self.storage.as_slice()
     }
 
     fn spawn(&mut self, state: TSystem::State) {
