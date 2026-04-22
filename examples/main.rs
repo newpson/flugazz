@@ -1,22 +1,22 @@
 use drop::liquid_drop::*;
 use drop::runge_kutta::*;
 use nalgebra::Vector2;
+use nalgebra::geometry::Point2;
 
 fn main() {
+    let polygon = [
+        Point2::new(0.0, 0.0),
+        Point2::new(0.0, 30.0),
+        Point2::new(30.0, 30.0),
+        Point2::new(30.0, 0.0),
+        Point2::new(0.0, 0.0),
+    ];
+    let phase_grid = PhaseGrid::new(&polygon, Vector2::new(10.0, 10.0));
     // Капля воды летит в воздухе при нормальном давлении и температуре 20 градусов Цельсия
     let system = LiquidDropProblem::new(
         1.2041,
         1.8e-05,
-        PhaseGrid::new(
-            &[
-                Vector2::new(0.0,  0.0),
-                Vector2::new(0.0,  30.0),
-                Vector2::new(30.0,  30.0),
-                Vector2::new(30.0,  0.0),
-                Vector2::new(0.0,  0.0),
-            ],
-            Vector2::new(10.0, 10.0),
-        ),
+        &phase_grid,
         1000.0,
         72.8,
         500.0,
@@ -26,7 +26,7 @@ fn main() {
     );
 
     let initial_state = LiquidDropState::new(
-        &Vector2::new(0.5, 1.0),
+        &Point2::new(0.5, 1.0),
         &Vector2::new(1.0, 1.0),
         // diameter: 0.1mm
         f64::powf(0.1, 3.0),

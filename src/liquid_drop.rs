@@ -3,7 +3,7 @@ use crate::runge_kutta::System;
 use nalgebra::Vector2;
 use nalgebra::geometry::Point2;
 use std::ops::{Add, Mul};
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 
 #[derive(Debug)]
 pub struct PhaseCell {
@@ -28,8 +28,8 @@ impl PhaseCell {
 }
 
 #[derive(Debug)]
-pub struct PhaseGrid {
-    area_polygon: Vec<Point2<f64>>,
+pub struct PhaseGrid<'a> {
+    area_polygon: &'a [Point2<f64>],
     grid_origin: Point2<f64>,
     grid_size: Vector2<usize>,
     cell_size: Vector2<f64>,
@@ -44,7 +44,7 @@ pub enum Location {
     EDGE,
 }
 
-impl PhaseGrid {
+impl<'a> PhaseGrid<'a> {
     /// Get bounding box of the polygon.
     /// Returns the corners of the bounding box `(bottom_left, top_right)`.
     pub fn get_bounds(polygon: &[Point2<f64>]) -> (Point2<f64>, Point2<f64>) {
@@ -67,7 +67,7 @@ impl PhaseGrid {
         (bottom_left, top_right)
     }
 
-    pub fn new(polygon: &[Point2<f64>], cell_size: Vector2<f64>) -> PhaseGrid {
+    pub fn new(polygon: &'a [Point2<f64>], cell_size: Vector2<f64>) -> PhaseGrid<'a> {
         let (bottom_left, top_right) = Self::get_bounds(polygon);
         let grid_size_float = approx::ceil_vec(top_right - bottom_left).component_div(&cell_size);
         let grid_size = Vector2::new(grid_size_float.x as usize, grid_size_float.y as usize);
@@ -76,7 +76,7 @@ impl PhaseGrid {
             cells.push(PhaseCell::new_empty());
         }
         PhaseGrid {
-            area_polygon: polygon.to_vec(),
+            area_polygon: polygon,
             grid_origin: bottom_left,
             grid_size: grid_size,
             cell_size: cell_size,
@@ -84,7 +84,7 @@ impl PhaseGrid {
         }
     }
 
-    pub fn sample<'a>(&'a self, point: Point2<f64>) -> Option<&'a PhaseCell> {
+    pub fn sample(&'a self, point: Point2<f64>) -> Option<&'a PhaseCell> {
         // TODO: sampling from multiple points (linear interpolation insted of nearest)
         let cool = approx::floor_vec((point - self.grid_origin).component_div(&self.cell_size));
         if cool.x.is_sign_negative() || cool.y.is_sign_negative() {
@@ -150,7 +150,7 @@ impl PhaseGrid {
 
     // Check whether the target point is inside, on the edge or outside the self.polygon
     pub fn locate_self(&self, target: &Point2<f64>) -> Location {
-        Self::locate(target, self.area_polygon.as_slice())
+        Self::locate(target, self.area_polygon)
     }
 }
 
@@ -257,7 +257,7 @@ mod tests {
     }
 }
 
-impl Index<usize> for PhaseGrid {
+impl<'a> Index<usize> for PhaseGrid<'a> {
     type Output = [PhaseCell];
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(index < self.grid_size.y);
@@ -266,8 +266,16 @@ impl Index<usize> for PhaseGrid {
     }
 }
 
+impl<'a> IndexMut<usize> for PhaseGrid<'a> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        debug_assert!(index < self.grid_size.y);
+        let start = index * self.grid_size.x;
+        &mut self.cells[start..start + self.grid_size.x]
+    }
+}
+
 #[derive(Debug)]
-pub struct LiquidDropProblem {
+pub struct LiquidDropProblem<'a> {
     /// Плотность газа, мкг/мм^3
     gas_density: f64,
 
@@ -275,7 +283,7 @@ pub struct LiquidDropProblem {
     gas_viscosity: f64,
 
     /// Сетка газовых ячеек
-    phase_grid: PhaseGrid,
+    phase_grid: &'a PhaseGrid<'a>,
 
     /// Плотность жидкости, мкг/мм^3
     fluid_density: f64,
@@ -296,11 +304,11 @@ pub struct LiquidDropProblem {
     drag_coefficient: f64,
 }
 
-impl LiquidDropProblem {
+impl<'a> LiquidDropProblem<'a> {
     pub fn new(
         gas_density: f64,
         gas_viscosity: f64,
-        phase_grid: PhaseGrid,
+        phase_grid: &'a PhaseGrid<'a>,
         fluid_density: f64,
         fluid_surface_tension: f64,
         nusselt: f64,
@@ -414,7 +422,7 @@ fn skew_transform(v: &Vector2<f64>, angle: f64) -> Vector2<f64> {
     Vector2::new(v.x - v.y * tan, v.x * tan + v.y)
 }
 
-impl<'a> System for LiquidDropProblem {
+impl<'a> System for LiquidDropProblem<'a> {
     type State = LiquidDropState;
 
     fn should_terminate(&self, time: f64, current: &Self::State) -> bool {
