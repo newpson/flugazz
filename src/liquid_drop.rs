@@ -315,7 +315,7 @@ impl<'a> LiquidDropProblem<'a> {
         nusselt: f64,
         weber_critical: f64,
         mass_flow: f64,
-        c: f64,
+        drag_coefficient: f64,
     ) -> Self {
         LiquidDropProblem {
             gas_density: gas_density,
@@ -326,7 +326,7 @@ impl<'a> LiquidDropProblem<'a> {
             nusselt: nusselt,
             weber_critical: weber_critical,
             mass_flow: mass_flow,
-            drag_coefficient: c,
+            drag_coefficient: drag_coefficient,
         }
     }
 }
