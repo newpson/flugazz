@@ -331,27 +331,20 @@ impl<'a> LiquidDropProblem<'a> {
     }
 }
 
-trait LiquidDrop<'a>: crate::runge_kutta::Linear {
-    fn position(&'a self) -> &'a Point2<f64>;
-    fn speed(&'a self) -> &'a Vector2<f64>;
-    fn diameter3(&'a self) -> f64;
-    fn accumulated_stress(&'a self) -> f64;
-}
-
 #[cfg_attr(feature = "c_compatible", repr(C))]
 #[derive(Clone, Debug)]
 pub struct LiquidDropState {
     /// Радиус-вектор положения капли, мм
-    position: Point2<f64>,
+    pub position: Point2<f64>,
 
     /// Вектор скорости капли, мм/мс
-    speed: Vector2<f64>,
+    pub speed: Vector2<f64>,
 
     /// Куб диаметра капли, мм^3
-    diameter3: f64,
+    pub diameter3: f64,
 
     /// Накопленное напряжение капли, кГц
-    accumulated_stress: f64,
+    pub accumulated_stress: f64,
 }
 
 impl LiquidDropState {
@@ -371,24 +364,6 @@ impl LiquidDropState {
 
     pub fn new(position: &Point2<f64>, speed: &Vector2<f64>, diameter3: f64) -> Self {
         LiquidDropState::new_with_stress(position, speed, diameter3, 0.0)
-    }
-}
-
-impl<'a> LiquidDrop<'a> for LiquidDropState {
-    fn position(&'a self) -> &'a Point2<f64> {
-        &self.position
-    }
-
-    fn speed(&'a self) -> &'a Vector2<f64> {
-        &self.speed
-    }
-
-    fn diameter3(&'a self) -> f64 {
-        self.diameter3
-    }
-
-    fn accumulated_stress(&'a self) -> f64 {
-        self.accumulated_stress
     }
 }
 
@@ -427,7 +402,7 @@ fn skew_transform(v: &Vector2<f64>, angle: f64) -> Vector2<f64> {
 impl<'a> System for LiquidDropProblem<'a> {
     type State = LiquidDropState;
 
-    fn should_terminate(&self, time: f64, current: &Self::State) -> bool {
+    fn should_terminate(&self, _time: f64, current: &Self::State) -> bool {
         match self.phase_grid.locate_self(&current.position) {
             Location::EDGE | Location::OUTSIDE => true,
             Location::INSIDE => false
@@ -456,14 +431,14 @@ impl<'a> System for LiquidDropProblem<'a> {
 
     fn integrate(&self, _time: f64, state: &Self::State) -> Self::State {
         let evaporation_rate = self.mass_flow / (1.0 - self.mass_flow).powf(0.75);
-        let diameter = state.diameter3().powf(1.0 / 3.0);
+        let diameter = state.diameter3.powf(1.0 / 3.0);
         let cell = self.phase_grid.sample(state.position).unwrap();
-        let speed_difference = cell.gas_speed - state.speed();
+        let speed_difference = cell.gas_speed - state.speed;
         let relaxation_time = 1.43 * diameter * (self.fluid_density / self.gas_density).sqrt()
-            / (cell.gas_speed - state.speed()).magnitude();
+            / (cell.gas_speed - state.speed).magnitude();
 
         LiquidDropState {
-            position: Point2::new(state.speed().x, state.speed().y),
+            position: Point2::new(state.speed.x, state.speed.y),
             speed: 0.75 * self.drag_coefficient * self.gas_density / self.fluid_density / diameter
                 * speed_difference.magnitude()
                 * speed_difference
@@ -480,9 +455,9 @@ impl<'a> System for LiquidDropProblem<'a> {
         previous_state: &Self::State,
         new_state: &mut Self::State,
     ) {
-        let previous_diameter = previous_state.diameter3().powf(1.0 / 3.0);
+        let previous_diameter = previous_state.diameter3.powf(1.0 / 3.0);
         let cell = self.phase_grid.sample(previous_state.position).unwrap();
-        let previous_speed_difference = cell.gas_speed - previous_state.speed();
+        let previous_speed_difference = cell.gas_speed - previous_state.speed;
         let weber =
             self.gas_density * previous_diameter * previous_speed_difference.magnitude_squared()
                 / self.fluid_surface_tension;

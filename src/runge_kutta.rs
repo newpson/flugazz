@@ -28,27 +28,9 @@ pub trait System {
 
 #[derive(Debug)]
 pub struct StateSequence<TSystem: System> {
-    time_begin: f64,
-    time_end: Option<f64>,
-    states: Vec<TSystem::State>,
-}
-
-impl<TSystem: System> StateSequence<TSystem> {
-    pub fn is_alive(&self) -> bool {
-        self.time_end.is_none()
-    }
-
-    pub fn time_begin(&self) -> f64 {
-        self.time_begin
-    }
-
-    pub fn time_end(&self) -> Option<f64> {
-        self.time_end
-    }
-
-    pub fn states(&self) -> &[TSystem::State] {
-        &self.states
-    }
+    pub time_begin: f64,
+    pub time_end: Option<f64>,
+    pub states: Vec<TSystem::State>,
 }
 
 pub struct Rk4<TSystem: System> {

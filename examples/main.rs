@@ -1,5 +1,5 @@
-use drop::liquid_drop::*;
-use drop::runge_kutta::*;
+use flugazz::liquid_drop::*;
+use flugazz::runge_kutta::*;
 use nalgebra::Vector2;
 use nalgebra::geometry::Point2;
 
@@ -38,10 +38,10 @@ fn main() {
     println!("Общее число капель: {}", result.len());
     for (i, sequence) in result.iter().enumerate() {
         println!("Капля #{}", i + 1);
-        println!("Число состояний: {}", sequence.states().len());
-        println!("Начало: {}", sequence.time_begin());
-        println!("Конец: {:?}", sequence.time_end());
-        for state in sequence.states() {
+        println!("Число состояний: {}", sequence.states.len());
+        println!("Начало: {}", sequence.time_begin);
+        println!("Конец: {:?}", sequence.time_end);
+        for state in sequence.states.iter() {
             println!("  {state:?}");
         }
     }

@@ -35,13 +35,13 @@ pub struct LiquidDropStateSequence {
 type Rk4Result = Vec<LiquidDropStateSequence>;
 
 impl<'a> From<&StateSequence<LiquidDropProblem<'a>>> for LiquidDropStateSequence {
-    fn from(value: &StateSequence<LiquidDropProblem<'a>>) -> Self {
+    fn from(sequence: &StateSequence<LiquidDropProblem<'a>>) -> Self {
         Self {
-            time_begin: value.time_begin(),
-            time_end: value.time_end().unwrap_or(0.0),
-            is_alive: value.is_alive(),
-            states_data: value.states().as_ptr(),
-            states_len: value.states().len(),
+            time_begin: sequence.time_begin,
+            time_end: sequence.time_end.unwrap_or(0.0),
+            is_alive: sequence.time_end.is_none(),
+            states_data: sequence.states.as_ptr(),
+            states_len: sequence.states.len(),
         }
     }
 }
