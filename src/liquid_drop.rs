@@ -5,6 +5,7 @@ use nalgebra::geometry::Point2;
 use std::ops::{Add, Mul};
 use std::ops::{Index, IndexMut};
 
+#[cfg_attr(feature = "c_compatible", repr(C))]
 #[derive(Debug)]
 pub struct PhaseCell {
     /// Скорость газа, мм/мс
@@ -337,6 +338,7 @@ trait LiquidDrop<'a>: crate::runge_kutta::Linear {
     fn accumulated_stress(&'a self) -> f64;
 }
 
+#[cfg_attr(feature = "c_compatible", repr(C))]
 #[derive(Clone, Debug)]
 pub struct LiquidDropState {
     /// Радиус-вектор положения капли, мм

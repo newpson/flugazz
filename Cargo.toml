@@ -7,5 +7,9 @@ edition = "2024"
 nalgebra = { version = "0", default-features = false }
 simba = "0" # implicitly required by `nalgebra` for magnitude*()
 
+[features]
+default = ["c_compatible"]
+c_compatible = []
+
 [lib]
 crate-type = ["rlib", "staticlib"]
