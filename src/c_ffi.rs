@@ -32,8 +32,10 @@ pub struct LiquidDropStateSequence {
     pub states_len: usize,
 }
 
+type Rk4Result = Vec<LiquidDropStateSequence>;
+
 impl<'a> From<&StateSequence<LiquidDropProblem<'a>>> for LiquidDropStateSequence {
-    fn from(value: &StateSequence<LiquidDropProblem>) -> Self {
+    fn from(value: &StateSequence<LiquidDropProblem<'a>>) -> Self {
         Self {
             time_begin: value.time_begin(),
             time_end: value.time_end().unwrap_or(0.0),
@@ -127,25 +129,39 @@ pub unsafe extern "C" fn Rk4_new<'a>(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn Rk4_integrate<'a>(
-    rk4: *mut Rk4<LiquidDropProblem>,
-    sequence_data: *mut *const LiquidDropStateSequence,
-) -> usize {
+    rk4: *mut Rk4<LiquidDropProblem<'a>>,
+) -> *mut Rk4Result {
     let rk4 = unsafe { rk4.as_mut().unwrap() };
     let result = rk4.integrate();
-    let mut state_sequences_reprc: Vec<LiquidDropStateSequence> = Vec::with_capacity(result.len());
+    let mut state_sequences_reprc: Rk4Result = Vec::with_capacity(result.len());
     for sequence in result.iter() {
         state_sequences_reprc.push(LiquidDropStateSequence::from(sequence))
     }
-    let len = state_sequences_reprc.len();
-    unsafe {
-        *sequence_data = ManuallyDrop::new(Box::new(state_sequences_reprc)).as_ptr();
-    }
-    len
+    ManuallyDrop::new(Box::new(state_sequences_reprc)).as_mut()
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn Rk4_destroy<'a>(rk4: *mut Rk4<LiquidDropProblem>) {
+pub unsafe extern "C" fn Rk4_destroy<'a>(rk4: *mut Rk4<LiquidDropProblem<'a>>) {
     unsafe {
         let _ = Box::from_raw(rk4);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Rk4Result_data(
+    rk4result: *const Rk4Result,
+) -> *const LiquidDropStateSequence {
+    unsafe { rk4result.as_ref().unwrap().as_ptr() }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Rk4Result_len(rk4result: *const Rk4Result) -> usize {
+    unsafe { rk4result.as_ref().unwrap().len() }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn Rk4Result_destroy(rk4result: *mut Rk4Result) {
+    unsafe {
+        let _ = Box::from_raw(rk4result);
     }
 }

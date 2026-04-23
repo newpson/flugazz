@@ -2,6 +2,7 @@
 
 struct PhaseGrid;
 struct Rk4;
+struct Rk4Result;
 
 struct vec2 {
     double x;
@@ -60,6 +61,10 @@ Rk4 *Rk4_new(
     const double time_begin,
     const double time_end,
     const double time_step);
-std::size_t Rk4_integrate(Rk4 *const rk4, const LiquidDropStateSequence *const *sequence_data);
-Rk4 *Rk4_destroy(Rk4 *rk4);
+Rk4Result *Rk4_integrate(Rk4 *const rk4);
+void Rk4_destroy(Rk4 *rk4);
+
+const LiquidDropStateSequence *Rk4Result_data(const Rk4Result *const rk4result);
+size_t Rk4Result_len(const Rk4Result *const rk4result);
+void Rk4Result_destroy(Rk4Result *result);
 }
