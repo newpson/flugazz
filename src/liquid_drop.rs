@@ -153,6 +153,10 @@ impl<'a> PhaseGrid<'a> {
     pub fn locate_self(&self, target: &Point2<f64>) -> Location {
         Self::locate(target, self.area_polygon)
     }
+
+    pub fn grid_size(&self) -> Vector2<usize> {
+        self.grid_size
+    }
 }
 
 #[cfg(test)]

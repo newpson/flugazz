@@ -62,6 +62,15 @@ pub unsafe extern "C" fn PhaseGrid_new<'a>(
 }
 
 #[unsafe(no_mangle)]
+pub unsafe extern "C" fn PhaseGrid_size<'a>(phase_grid: *mut PhaseGrid<'a>) -> uvec2 {
+    let grid_size = unsafe { phase_grid.as_mut().unwrap().grid_size() };
+    uvec2 {
+        x: grid_size.x,
+        y: grid_size.y,
+    }
+}
+
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn PhaseGrid_get<'a>(
     phase_grid: *mut PhaseGrid<'a>,
     row: usize,
@@ -128,9 +137,7 @@ pub unsafe extern "C" fn Rk4_new<'a>(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn Rk4_integrate<'a>(
-    rk4: *mut Rk4<LiquidDropProblem<'a>>,
-) -> *mut Rk4Result {
+pub unsafe extern "C" fn Rk4_integrate<'a>(rk4: *mut Rk4<LiquidDropProblem<'a>>) -> *mut Rk4Result {
     let rk4 = unsafe { rk4.as_mut().unwrap() };
     let result = rk4.integrate();
     let mut state_sequences_reprc: Rk4Result = Vec::with_capacity(result.len());

@@ -1,3 +1,4 @@
+#pragma once
 #include <cstddef>
 
 struct PhaseGrid;
@@ -42,6 +43,7 @@ PhaseGrid *PhaseGrid_new(
     const vec2 *const polygon_data,
     const std::size_t polygon_len,
     const vec2 cell_size);
+uvec2 PhaseGrid_size(PhaseGrid *const phase_grid);
 PhaseCell *PhaseGrid_get(PhaseGrid *const phase_grid, const size_t row, const size_t col);
 void PhaseGrid_destroy(PhaseGrid *phase_grid);
 void PhaseGrid_debug_print(const PhaseGrid *const phase_grid);
