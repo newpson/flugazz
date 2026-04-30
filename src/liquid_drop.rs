@@ -407,6 +407,8 @@ impl<'a> System for LiquidDropProblem<'a> {
     type State = LiquidDropState;
 
     fn should_terminate(&self, _time: f64, current: &Self::State) -> bool {
+        // let location = self.phase_grid.locate_self(&current.position);
+        // println!("{:?}: {:?}", &current.position, &location);
         match self.phase_grid.locate_self(&current.position) {
             Location::EDGE | Location::OUTSIDE => true,
             Location::INSIDE => false
@@ -436,7 +438,11 @@ impl<'a> System for LiquidDropProblem<'a> {
     fn integrate(&self, _time: f64, state: &Self::State) -> Self::State {
         let evaporation_rate = self.mass_flow / (1.0 - self.mass_flow).powf(0.75);
         let diameter = state.diameter3.powf(1.0 / 3.0);
-        let cell = self.phase_grid.sample(state.position).unwrap();
+        // println!("probing {:?}", state.position);
+        // FIXME: sample can return None here!
+        let cell_opt = self.phase_grid.sample(state.position);
+        let empty_cell = PhaseCell::new_empty();
+        let cell = cell_opt.unwrap_or(&empty_cell);
         let speed_difference = cell.gas_speed - state.speed;
         let relaxation_time = 1.43 * diameter * (self.fluid_density / self.gas_density).sqrt()
             / (cell.gas_speed - state.speed).magnitude();
