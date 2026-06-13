@@ -2,7 +2,7 @@ use std::ops::{Add, Mul};
 
 pub trait Linear: Clone + Add<Self, Output = Self> + Mul<f64, Output = Self> {}
 
-pub trait System {
+pub trait System: Clone {
     type State: Linear;
 
     /// Should current state be terminated
@@ -33,9 +33,9 @@ pub struct StateSequence<TSystem: System> {
     pub states: Vec<TSystem::State>,
 }
 
-pub struct Rk4<TSystem: System> {
+pub struct Rk4<'r, TSystem: System> {
     /// Implements the set of methods that are used during the integration process and solves a specific problem (model)
-    system: TSystem,
+    system: &'r mut TSystem,
     /// Current time
     time: f64,
     /// The time (including) when the integration process will be stopped
@@ -48,10 +48,10 @@ pub struct Rk4<TSystem: System> {
     alive: Vec<usize>,
 }
 
-impl<TSystem: System> Rk4<TSystem> {
+impl<'r, TSystem: System> Rk4<'r, TSystem> {
     /// Let's start with a single `process` at moment `t_begin` and run this process with step `t_step` using `system` till `t_end`
     pub fn new(
-        system: TSystem,
+        system: &'r mut TSystem,
         states: &[TSystem::State],
         time_begin: f64,
         time_end: f64,
@@ -116,14 +116,13 @@ impl<TSystem: System> Rk4<TSystem> {
                     .integrate(self.time + h, &(last_state.clone() + k3.clone() * h));
 
                 let mut new_state = last_state.clone() + (k1 + k2 * 2.0 + k3 * 2.0 + k4) * h6;
-                self.system
-                    .post_integrate(self.time, last_state, &mut new_state);
+                self.system.post_integrate(self.time, last_state, &mut new_state);
                 self.storage[self.alive[i]].states.push(new_state);
 
                 i += 1;
             }
             self.time += self.time_step;
-            if self.time > self.time_end && self.time - self.time_end < self.time_step {
+            if self.time > self.time_end && self.time - self.time_end < self.time_step / 2.0 {
                 self.time = self.time_end;
             }
         }

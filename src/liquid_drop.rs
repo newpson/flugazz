@@ -6,16 +6,16 @@ use std::ops::{Add, Mul};
 use std::ops::{Index, IndexMut};
 
 #[cfg_attr(feature = "c_compatible", repr(C))]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PhaseCell {
     /// Скорость газа, мм/мс
-    gas_speed: Vector2<f64>,
+    pub gas_speed: Vector2<f64>,
 
     /// Градиент давления газа, Па/мм
-    gas_pressure_grad: Vector2<f64>,
+    pub gas_pressure_grad: Vector2<f64>,
 
     /// Масса пара, мкг
-    fluid_mass: f64,
+    pub fluid_mass: f64,
 }
 
 impl PhaseCell {
@@ -28,9 +28,9 @@ impl PhaseCell {
     }
 }
 
-#[derive(Debug)]
-pub struct PhaseGrid<'a> {
-    area_polygon: &'a [Point2<f64>],
+#[derive(Debug, Clone)]
+pub struct PhaseGrid {
+    area_polygon: Vec<Point2<f64>>,
     grid_origin: Point2<f64>,
     grid_size: Vector2<usize>,
     cell_size: Vector2<f64>,
@@ -45,7 +45,7 @@ pub enum Location {
     EDGE,
 }
 
-impl<'a> PhaseGrid<'a> {
+impl PhaseGrid {
     /// Get bounding box of the polygon.
     /// Returns the corners of the bounding box `(bottom_left, top_right)`.
     pub fn get_bounds(polygon: &[Point2<f64>]) -> (Point2<f64>, Point2<f64>) {
@@ -68,7 +68,7 @@ impl<'a> PhaseGrid<'a> {
         (bottom_left, top_right)
     }
 
-    pub fn new(polygon: &'a [Point2<f64>], cell_size: Vector2<f64>) -> PhaseGrid<'a> {
+    pub fn new(polygon: & [Point2<f64>], cell_size: Vector2<f64>) -> PhaseGrid {
         let (bottom_left, top_right) = Self::get_bounds(polygon);
         let grid_size_float = approx::ceil_vec(top_right - bottom_left).component_div(&cell_size);
         let grid_size = Vector2::new(grid_size_float.x as usize, grid_size_float.y as usize);
@@ -77,7 +77,7 @@ impl<'a> PhaseGrid<'a> {
             cells.push(PhaseCell::new_empty());
         }
         PhaseGrid {
-            area_polygon: polygon,
+            area_polygon: polygon.to_vec(),
             grid_origin: bottom_left,
             grid_size: grid_size,
             cell_size: cell_size,
@@ -85,7 +85,7 @@ impl<'a> PhaseGrid<'a> {
         }
     }
 
-    pub fn sample(&'a self, point: Point2<f64>) -> Option<&'a PhaseCell> {
+    pub fn sample(&self, point: Point2<f64>) -> Option<&PhaseCell> {
         // TODO: sampling from multiple points (linear interpolation insted of nearest)
         let cool = approx::floor_vec((point - self.grid_origin).component_div(&self.cell_size));
         if cool.x.is_sign_negative() || cool.y.is_sign_negative() {
@@ -96,6 +96,19 @@ impl<'a> PhaseGrid<'a> {
             return None;
         }
         Some(&self[integer.y][integer.x])
+    }
+
+    pub fn sample_mut(&mut self, point: Point2<f64>) -> Option<&mut PhaseCell> {
+        // TODO: sampling from multiple points (linear interpolation insted of nearest)
+        let cool = approx::floor_vec((point - self.grid_origin).component_div(&self.cell_size));
+        if cool.x.is_sign_negative() || cool.y.is_sign_negative() {
+            return None;
+        }
+        let integer = Vector2::new(cool.x as usize, cool.y as usize);
+        if integer.x >= self.grid_size.x || integer.y >= self.grid_size.y {
+            return None;
+        }
+        Some(&mut self[integer.y][integer.x])
     }
 
     // Check whether the target point is inside, on the edge or outside the polygon
@@ -151,11 +164,15 @@ impl<'a> PhaseGrid<'a> {
 
     // Check whether the target point is inside, on the edge or outside the self.polygon
     pub fn locate_self(&self, target: &Point2<f64>) -> Location {
-        Self::locate(target, self.area_polygon)
+        Self::locate(target, self.area_polygon.as_slice())
     }
 
     pub fn grid_size(&self) -> Vector2<usize> {
         self.grid_size
+    }
+
+    pub fn grid_origin(&self) -> Point2<f64> {
+        self.grid_origin
     }
 }
 
@@ -262,7 +279,7 @@ mod tests {
     }
 }
 
-impl<'a> Index<usize> for PhaseGrid<'a> {
+impl Index<usize> for PhaseGrid {
     type Output = [PhaseCell];
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(index < self.grid_size.y);
@@ -271,7 +288,7 @@ impl<'a> Index<usize> for PhaseGrid<'a> {
     }
 }
 
-impl<'a> IndexMut<usize> for PhaseGrid<'a> {
+impl IndexMut<usize> for PhaseGrid {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(index < self.grid_size.y);
         let start = index * self.grid_size.x;
@@ -279,41 +296,41 @@ impl<'a> IndexMut<usize> for PhaseGrid<'a> {
     }
 }
 
-#[derive(Debug)]
-pub struct LiquidDropProblem<'a> {
+#[derive(Debug, Clone)]
+pub struct LiquidDropProblem {
     /// Плотность газа, мкг/мм^3
-    gas_density: f64,
+    pub gas_density: f64,
 
     /// Динамическая вязкость газа, Па*мс
-    gas_viscosity: f64,
+    pub gas_viscosity: f64,
 
     /// Сетка газовых ячеек
-    phase_grid: &'a PhaseGrid<'a>,
+    pub phase_grid: PhaseGrid,
 
     /// Плотность жидкости, мкг/мм^3
-    fluid_density: f64,
+    pub fluid_density: f64,
 
     /// Коэффициент поверхностного натяжения, мкН/мм
-    fluid_surface_tension: f64,
+    pub fluid_surface_tension: f64,
 
     /// Постоянное число Нуссельта, число
-    nusselt: f64,
+    pub nusselt: f64,
 
     /// Критическое значение числа Вебера, число
-    weber_critical: f64,
+    pub weber_critical: f64,
 
     /// Массовый поток, число из интервала (0,1)
-    mass_flow: f64,
+    pub mass_flow: f64,
 
     /// Коэффициент сопротивления газовой среды, число
-    drag_coefficient: f64,
+    pub drag_coefficient: f64,
 }
 
-impl<'a> LiquidDropProblem<'a> {
+impl LiquidDropProblem {
     pub fn new(
         gas_density: f64,
         gas_viscosity: f64,
-        phase_grid: &'a PhaseGrid<'a>,
+        phase_grid: &PhaseGrid,
         fluid_density: f64,
         fluid_surface_tension: f64,
         nusselt: f64,
@@ -324,7 +341,7 @@ impl<'a> LiquidDropProblem<'a> {
         LiquidDropProblem {
             gas_density: gas_density,
             gas_viscosity: gas_viscosity,
-            phase_grid: phase_grid,
+            phase_grid: phase_grid.clone(),
             fluid_density: fluid_density,
             fluid_surface_tension: fluid_surface_tension,
             nusselt: nusselt,
@@ -403,12 +420,13 @@ fn skew_transform(v: &Vector2<f64>, angle: f64) -> Vector2<f64> {
     Vector2::new(v.x - v.y * tan, v.x * tan + v.y)
 }
 
-impl<'a> System for LiquidDropProblem<'a> {
+impl System for LiquidDropProblem {
     type State = LiquidDropState;
 
-    fn should_terminate(&self, _time: f64, current: &Self::State) -> bool {
-        // let location = self.phase_grid.locate_self(&current.position);
-        // println!("{:?}: {:?}", &current.position, &location);
+    fn should_terminate(&self, time: f64, current: &Self::State) -> bool {
+        if current.diameter3 <= 1e-9 || current.diameter3.is_nan() {
+            return true;
+        }
         match self.phase_grid.locate_self(&current.position) {
             Location::EDGE | Location::OUTSIDE => true,
             Location::INSIDE => false
@@ -435,11 +453,12 @@ impl<'a> System for LiquidDropProblem<'a> {
         None
     }
 
-    fn integrate(&self, _time: f64, state: &Self::State) -> Self::State {
+    fn integrate(&self, time: f64, state: &Self::State) -> Self::State {
         let evaporation_rate = self.mass_flow / (1.0 - self.mass_flow).powf(0.75);
+        // if state.diameter3 < 0.0 {
+        //     println!("HUH?: time={time}, state.diameter3={}", state.diameter3);
+        // }
         let diameter = state.diameter3.powf(1.0 / 3.0);
-        // println!("probing {:?}", state.position);
-        // FIXME: sample can return None here!
         let cell_opt = self.phase_grid.sample(state.position);
         let empty_cell = PhaseCell::new_empty();
         let cell = cell_opt.unwrap_or(&empty_cell);
@@ -461,12 +480,17 @@ impl<'a> System for LiquidDropProblem<'a> {
 
     fn post_integrate(
         &mut self,
-        _time: f64,
+        time: f64,
         previous_state: &Self::State,
         new_state: &mut Self::State,
     ) {
         let previous_diameter = previous_state.diameter3.powf(1.0 / 3.0);
-        let cell = self.phase_grid.sample(previous_state.position).unwrap();
+        // FIXME: previous_state.diameter3 can be negative
+        let mass_difference = std::f64::consts::PI * (previous_state.diameter3 - new_state.diameter3) * self.fluid_density / 6.0;
+        let cell_opt = self.phase_grid.sample_mut(previous_state.position);
+        let mut empty_cell = PhaseCell::new_empty();
+        let cell = cell_opt.unwrap_or(&mut empty_cell);
+        cell.fluid_mass += if mass_difference.is_nan() { 0.0 } else { mass_difference };
         let previous_speed_difference = cell.gas_speed - previous_state.speed;
         let weber =
             self.gas_density * previous_diameter * previous_speed_difference.magnitude_squared()

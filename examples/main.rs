@@ -11,16 +11,16 @@ fn main() {
         Point2::new(30.0, 0.0),
         Point2::new(0.0, 0.0),
     ];
-    let phase_grid = PhaseGrid::new(&polygon, Vector2::new(10.0, 10.0));
+    let phase_grid = PhaseGrid::new(&polygon, Vector2::new(2.0, 2.0));
     // Капля воды летит в воздухе при нормальном давлении и температуре 20 градусов Цельсия
-    let system = LiquidDropProblem::new(
+    let mut system = LiquidDropProblem::new(
         1.2041,
         1.8e-05,
         &phase_grid,
         1000.0,
-        72.8,
+        7.8,
         500.0,
-        10.0,
+        2.0,
         0.99,
         1.0,
     );
@@ -32,7 +32,7 @@ fn main() {
         f64::powf(0.1, 3.0),
     );
 
-    let mut stepper = Rk4::new(system, &[initial_state.clone()], 0.0, 1.0, 0.1);
+    let mut stepper = Rk4::new(&mut system, &[initial_state.clone()], 0.0, 10.0, 0.1);
     let result = stepper.integrate();
 
     println!("Общее число капель: {}", result.len());
@@ -45,4 +45,13 @@ fn main() {
             println!("  {state:?}");
         }
     }
+
+    println!("Сетка:");
+    for i in 0..system.phase_grid.grid_size().y {
+        for j in 0..system.phase_grid.grid_size().x {
+            print!("{} ", system.phase_grid[i][j].fluid_mass);
+        }
+        println!();
+    }
+
 }

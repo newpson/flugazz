@@ -4,6 +4,7 @@
 struct PhaseGrid;
 struct Rk4;
 struct Rk4Result;
+struct Rk4System;
 
 struct vec2 {
     double x;
@@ -43,12 +44,14 @@ PhaseGrid *PhaseGrid_new(
     const vec2 *const polygon_data,
     const std::size_t polygon_len,
     const vec2 cell_size);
-uvec2 PhaseGrid_size(PhaseGrid *const phase_grid);
-PhaseCell *PhaseGrid_get(PhaseGrid *const phase_grid, const size_t row, const size_t col);
+uvec2 PhaseGrid_size(const PhaseGrid *const phase_grid);
+vec2 PhaseGrid_origin(const PhaseGrid *const phase_grid);
+const PhaseCell *PhaseGrid_get(const PhaseGrid *const phase_grid, const size_t row, const size_t col);
+PhaseCell *PhaseGrid_get_mut(PhaseGrid *const phase_grid, const size_t row, const size_t col);
 void PhaseGrid_destroy(PhaseGrid *phase_grid);
 void PhaseGrid_debug_print(const PhaseGrid *const phase_grid);
 
-Rk4 *Rk4_new(
+Rk4System *Rk4System_new(
     const double gas_density,
     const double gas_viscosity,
     const double fluid_density,
@@ -57,7 +60,12 @@ Rk4 *Rk4_new(
     const double weber_critical,
     const double mass_flow,
     const double drag_coefficient,
-    PhaseGrid *const phase_grid,
+    PhaseGrid *const phase_grid);
+PhaseGrid *Rk4System_grid(Rk4System *system);
+void Rk4System_destroy(Rk4System *system);
+
+Rk4 *Rk4_new(
+    Rk4System *const system,
     const LiquidDropState *const initial_states_data,
     const std::size_t initial_states_len,
     const double time_begin,
